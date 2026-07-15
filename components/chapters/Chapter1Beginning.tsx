@@ -13,9 +13,15 @@ type TimelineMoment = {
 
 // EDIT ME — replace with real early-life milestones.
 const moments: TimelineMoment[] = [
-  { year: "PLACEHOLDER", text: "The year it all began." },
-  { year: "PLACEHOLDER", text: "A first memory worth keeping." },
-  { year: "PLACEHOLDER", text: "The moment she became who she is." },
+  { year: "July 24, 2005", text: "Born in Hyderabad — the beginning of everything." },
+  {
+    year: "Evenings, growing up",
+    text: "She'd walk to the office campus where they lived, just to bring her father home. He'd spend the hour playing carrom, waiting for his wife and kids to show up so they could all walk back together.",
+  },
+  {
+    year: "The move to Delhi",
+    text: "Then came the move to Delhi, and joining Vandana International School in 2nd standard — a new city, a new school, and a childhood that didn't always come with a lot of friends. It quietly shaped who she'd become.",
+  },
   { year: "Today", text: "21 years, and still just the beginning." },
 ];
 

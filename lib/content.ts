@@ -8,13 +8,51 @@ export const intro = {
   cta: "Begin Journey",
 };
 
-export const littleThings = [
-  { label: "Favorite scent", value: "Vanilla" },
-  { label: "Favorite color", value: "Pink" },
-  { label: "Comfort food", value: "Instant ramen & cheesy pasta" },
-  { label: "Favorite season", value: "Summer" },
-  { label: "Favorite time of day", value: "Sunset" },
-  { label: "Favorite music", value: "ABBA" },
+export type LittleThingReaction =
+  | { type: "text"; message: string }
+  | { type: "audio"; src: string; message: string };
+
+export const littleThings: {
+  label: string;
+  value: string;
+  reaction: LittleThingReaction;
+}[] = [
+  {
+    label: "Favorite scent",
+    value: "Vanilla",
+    reaction: { type: "text", message: "You've been vanilla'd." },
+  },
+  {
+    label: "Favorite color",
+    value: "Pink",
+    reaction: { type: "text", message: "Certified pink, through and through." },
+  },
+  {
+    label: "Comfort food",
+    value: "Instant ramen & cheesy pasta",
+    reaction: { type: "text", message: "A quick bowl fixes everything." },
+  },
+  {
+    label: "Favorite season",
+    value: "Summer",
+    reaction: { type: "text", message: "Endless summer, unlocked." },
+  },
+  {
+    label: "Favorite time of day",
+    value: "Sunset",
+    reaction: { type: "text", message: "Golden hour, activated." },
+  },
+  {
+    label: "Favorite music",
+    value: "ABBA",
+    // Drop your own legally-owned mp3 in /public/assets/music/ and point
+    // this at it — e.g. "/assets/music/super-trouper.mp3".
+    reaction: {
+      type: "audio",
+      src: "/assets/music/super-trouper.mp3",
+      message: "Super Trouper, just for you.",
+    },
+  },
 ];
 
 export type Destination = {
@@ -50,17 +88,17 @@ export const destinations: Destination[] = [
 ];
 
 export const hiddenQualities = [
-  "PLACEHOLDER — a trait she doesn't give herself enough credit for.",
-  "She notices when people feel left out, and quietly makes room for them.",
-  "PLACEHOLDER — a quirk that's actually a strength.",
-  "PLACEHOLDER — how she makes people feel included, on purpose.",
+  "She puts in real effort to keep everyone included — and doesn't expect anyone to notice.",
+  "She calls herself non-judgmental, and she is — even though she'll fully admit she loves a bit of gossip.",
+  "Most people don't know she reads. She keeps that one quietly to herself.",
+  "She trips over absolutely nothing, on a fairly regular basis — and somehow makes it endearing.",
 ];
 
 export const dreams = [
-  { id: "pottery", label: "Pottery", detail: "PLACEHOLDER — the pottery dream, in her words or yours." },
-  { id: "language", label: "Speaking another language", detail: "PLACEHOLDER — which language, and why." },
-  { id: "travel", label: "Travel", detail: "PLACEHOLDER — where to, and what she'd do there." },
-  { id: "future", label: "A future goal", detail: "PLACEHOLDER — something she's working toward." },
+  { id: "pottery", label: "Pottery", detail: "The hobby she's been curious about but hasn't tried yet — hands in clay, making something from nothing." },
+  { id: "language", label: "Speaking another language", detail: "If she could master any skill instantly with zero practice, this is the one she'd pick." },
+  { id: "travel", label: "Travel", detail: "Somewhere exotic and beachy — waking up somewhere far, next to you, obviously." },
+  { id: "future", label: "Whatever's next", detail: "She just finished college. This one's still being written." },
 ];
 
 export const detectivePuzzle = {
@@ -84,12 +122,12 @@ export const detectivePuzzle = {
 };
 
 export const gardenFlowers = [
-  "PLACEHOLDER — something beautiful about her, revealed on click.",
+  "Wildflowers — because she'd want a garden that survives her forgetting to water it.",
   "She's faster to laugh than anyone I know.",
-  "PLACEHOLDER — a quality that grew on you over time.",
-  "PLACEHOLDER.",
-  "PLACEHOLDER.",
-  "PLACEHOLDER.",
+  "She reads in secret, more than anyone would guess.",
+  "She loves a bit of gossip, but never with cruelty.",
+  "She finished college this year and hasn't made a big deal about it — but she should.",
+  "She's made peace with how unpredictable life is, and keeps planning anyway.",
 ];
 
 export type ScrapbookMemory = {
