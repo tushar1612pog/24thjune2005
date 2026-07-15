@@ -68,7 +68,7 @@ export default function Chapter9TwentyOneReasons({
 
       <div className="mt-8 flex min-h-[6rem] w-full max-w-md flex-col gap-3">
         <AnimatePresence initial={false}>
-          {[...opened]
+          {Array.from(opened)
             .sort((a, b) => b - a)
             .slice(0, 3)
             .map((i) => (
