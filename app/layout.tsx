@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Fraunces, Instrument_Sans } from "next/font/google";
 import "./globals.css";
 import GlobalAtmosphere from "@/components/shared/GlobalAtmosphere";
+import { MusicProvider } from "@/lib/musicContext";
 
 const fraunces = Fraunces({
   subsets: ["latin"],
@@ -33,7 +34,7 @@ export default function RootLayout({
       <body className="font-body bg-vanilla text-plum antialiased">
         <div className="grain" aria-hidden="true" />
         <GlobalAtmosphere />
-        {children}
+        <MusicProvider>{children}</MusicProvider>
       </body>
     </html>
   );

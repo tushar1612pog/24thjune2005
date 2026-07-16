@@ -181,10 +181,3 @@ export const future = {
   finalLine: "I can't wait to keep growing beside you.",
 };
 
-export const music = {
-  // The whole-site background track, toggled by the floating music button.
-  // Drop your own legally-owned copy of Super Trouper here and match the
-  // filename — Claude can't source or embed the actual song file.
-  src: "/assets/music/super-trouper.mp3",
-  label: "Super Trouper — ABBA",
-};

@@ -106,3 +106,79 @@ body {
   background: #e8927c;
   border-radius: 999px;
 }
+
+/* ── Vinyl music toggle ──────────────────────────────────── */
+@keyframes vinyl-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.vinyl-toggle {
+  filter: drop-shadow(0 10px 22px rgba(74, 59, 82, 0.35));
+}
+
+.vinyl-record {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 35% 30%, #3a3a3a 0%, #161616 55%, #050505 100%);
+  animation: vinyl-spin 3.2s linear infinite;
+  /* animationPlayState is toggled inline in the component — the animation
+     itself is never removed/remounted, so it never restarts from 0deg. */
+}
+
+.vinyl-groove {
+  position: absolute;
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.vinyl-shine {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: linear-gradient(
+    115deg,
+    rgba(255, 255, 255, 0.22) 0%,
+    rgba(255, 255, 255, 0.04) 22%,
+    transparent 45%
+  );
+  mix-blend-mode: screen;
+}
+
+.vinyl-label {
+  position: absolute;
+  inset: 32%;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 40% 35%, #f4c7b6 0%, #e8927c 60%, #c96b52 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.4), inset 0 -2px 4px rgba(0, 0, 0, 0.25);
+}
+
+.vinyl-spindle {
+  width: 14%;
+  height: 14%;
+  border-radius: 9999px;
+  background: #4a3b52;
+}
+
+.vinyl-icon {
+  position: absolute;
+  bottom: -2px;
+  right: -2px;
+  display: flex;
+  height: 20px;
+  width: 20px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  background: #4a3b52;
+  border: 2px solid #fbf3e7;
+  pointer-events: none;
+}

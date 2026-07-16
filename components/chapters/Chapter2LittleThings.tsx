@@ -1,10 +1,11 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import ParticleField from "@/components/shared/ParticleField";
 import ChapterFooter from "@/components/shared/ChapterFooter";
 import { littleThings } from "@/lib/content";
+import { useMusic } from "@/lib/musicContext";
 
 export default function Chapter2LittleThings({
   onNext,
@@ -13,7 +14,7 @@ export default function Chapter2LittleThings({
 }) {
   const [flipped, setFlipped] = useState<Set<number>>(new Set());
   const [popup, setPopup] = useState<string | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const { switchToSuperTrouper } = useMusic();
 
   const flip = (i: number) => {
     const item = littleThings[i];
@@ -24,13 +25,10 @@ export default function Chapter2LittleThings({
     setTimeout(() => setPopup((p) => (p === item.reaction.message ? null : p)), 2600);
 
     if (item.reaction.type === "audio") {
-      if (!audioRef.current) audioRef.current = new Audio();
-      audioRef.current.src = item.reaction.src;
-      audioRef.current.currentTime = 0;
-      audioRef.current.volume = 0.5;
-      audioRef.current.play().catch(() => {
-        // autoplay restrictions or missing file — pop-up message still shows
-      });
+      // Goes through the single global audio manager — ambient fades out,
+      // Super Trouper fades in on the same shared <audio> element. No
+      // second audio instance is ever created here.
+      switchToSuperTrouper();
     }
   };
 

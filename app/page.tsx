@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useJourneyStore, CHAPTER_COUNT } from "@/lib/journeyStore";
+import { useMusic } from "@/lib/musicContext";
 import IntroSequence from "@/components/shared/IntroSequence";
 import Firefly from "@/components/shared/Firefly";
 import MusicToggle from "@/components/shared/MusicToggle";
@@ -30,11 +31,15 @@ const CHAPTER_TITLES = [
   "The Future",
 ];
 
+const CHAPTER_2_INDEX = 1; // "Little Things That Make You…" — the ABBA card lives here
+
 export default function Home() {
   const { introComplete, unlockedChapter, completeIntro, unlockNext } =
     useJourneyStore();
+  const { playAmbient, returnToAmbient } = useMusic();
   const [currentChapter, setCurrentChapter] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const previousChapterRef = useRef(0);
 
   // Track which chapter is centered in view, to light up the progress rail.
   useEffect(() => {
@@ -58,6 +63,23 @@ export default function Home() {
     return () => observer.disconnect();
   }, [introComplete]);
 
+  // The moment the visible chapter changes away from Chapter 2, Super
+  // Trouper (if it's the one playing) stops and ambient resumes on its
+  // own — no extra click required.
+  useEffect(() => {
+    if (previousChapterRef.current === CHAPTER_2_INDEX && currentChapter !== CHAPTER_2_INDEX) {
+      returnToAmbient();
+    }
+    previousChapterRef.current = currentChapter;
+  }, [currentChapter, returnToAmbient]);
+
+  const handleBegin = () => {
+    // Called synchronously from the click handler so the browser still
+    // treats audio.play() as a direct result of user interaction.
+    playAmbient();
+    completeIntro();
+  };
+
   const goToChapter = (index: number) => {
     const target = scrollRef.current?.querySelector<HTMLElement>(
       `[data-chapter-index="${index}"]`
@@ -71,7 +93,7 @@ export default function Home() {
   };
 
   if (!introComplete) {
-    return <IntroSequence onBegin={completeIntro} />;
+    return <IntroSequence onBegin={handleBegin} />;
   }
 
   return (

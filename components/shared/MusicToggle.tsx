@@ -1,55 +1,54 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { music } from "@/lib/content";
+import { useMusic } from "@/lib/musicContext";
 
+/**
+ * Bottom-right vinyl "sticker" — Instagram's music-sticker aesthetic.
+ * Spins continuously while a track is playing, freezes when paused.
+ * The CSS animation is never unmounted/remounted, only paused via
+ * animationPlayState, so rotation always resumes smoothly instead of
+ * snapping back to 0deg.
+ */
 export default function MusicToggle() {
-  const [playing, setPlaying] = useState(false);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  useEffect(() => {
-    audioRef.current = new Audio(music.src);
-    audioRef.current.loop = true;
-    audioRef.current.volume = 0.35;
-    return () => {
-      audioRef.current?.pause();
-    };
-  }, []);
-
-  const toggle = () => {
-    if (!audioRef.current) return;
-    if (playing) {
-      audioRef.current.pause();
-    } else {
-      audioRef.current.play().catch(() => {
-        // autoplay restrictions — silently ignore, user can retry
-      });
-    }
-    setPlaying((p) => !p);
-  };
+  const { isPlaying, togglePlayPause } = useMusic();
 
   return (
     <motion.button
-      onClick={toggle}
-      aria-label={playing ? "Pause background music" : "Play background music"}
-      aria-pressed={playing}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      transition={{ delay: 1.5, duration: 1 }}
-      className="fixed bottom-6 right-6 z-40 flex h-11 w-11 items-center justify-center rounded-full glass shadow-[0_4px_20px_rgba(74,59,82,0.12)] focus:outline-none focus-visible:ring-2 focus-visible:ring-coral"
+      onClick={togglePlayPause}
+      aria-label={isPlaying ? "Pause music" : "Play music"}
+      aria-pressed={isPlaying}
+      initial={{ opacity: 0, scale: 0.7 }}
+      animate={{ opacity: 1, scale: 1 }}
+      whileHover={{ scale: 1.08, rotate: isPlaying ? 0 : 6 }}
+      whileTap={{ scale: 0.94 }}
+      transition={{ delay: 1.5, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+      className="vinyl-toggle fixed bottom-6 right-6 z-40 h-16 w-16 focus:outline-none focus-visible:ring-2 focus-visible:ring-coral focus-visible:ring-offset-2 focus-visible:ring-offset-vanilla"
     >
-      <span className="sr-only">{music.label}</span>
-      {playing ? (
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <rect x="3" y="2" width="3" height="12" rx="1" fill="#4A3B52" />
-          <rect x="10" y="2" width="3" height="12" rx="1" fill="#4A3B52" />
-        </svg>
-      ) : (
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-          <path d="M4 2.5v11l10-5.5-10-5.5z" fill="#4A3B52" />
-        </svg>
-      )}
+      <span className="sr-only">{isPlaying ? "Pause background music" : "Play background music"}</span>
+
+      <div className="vinyl-record" style={{ animationPlayState: isPlaying ? "running" : "paused" }}>
+        <div className="vinyl-groove" style={{ inset: "10%" }} />
+        <div className="vinyl-groove" style={{ inset: "16%" }} />
+        <div className="vinyl-groove" style={{ inset: "22%" }} />
+        <div className="vinyl-shine" />
+        <div className="vinyl-label">
+          <div className="vinyl-spindle" />
+        </div>
+      </div>
+
+      <div className="vinyl-icon">
+        {isPlaying ? (
+          <svg width="9" height="9" viewBox="0 0 16 16" fill="none">
+            <rect x="3" y="2" width="3" height="12" rx="1" fill="#FBF3E7" />
+            <rect x="10" y="2" width="3" height="12" rx="1" fill="#FBF3E7" />
+          </svg>
+        ) : (
+          <svg width="9" height="9" viewBox="0 0 16 16" fill="none">
+            <path d="M4 2.5v11l10-5.5-10-5.5z" fill="#FBF3E7" />
+          </svg>
+        )}
+      </div>
     </motion.button>
   );
 }
