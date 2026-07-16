@@ -4,7 +4,13 @@
 // ─────────────────────────────────────────────────────────
 
 export const intro = {
-  lines: ["Every person lives a story.", "This is yours."],
+  loading: "Collecting memories…",
+  lines: [
+    "I've always believed…",
+    "…every person lives a story.",
+    "Some stories deserve to be remembered.",
+    "This one belongs to you.",
+  ],
   cta: "Begin Journey",
 };
 
@@ -52,6 +58,11 @@ export const littleThings: {
       src: "/assets/music/super-trouper.mp3",
       message: "Super Trouper, just for you.",
     },
+  },
+  {
+    label: "Recharge ritual",
+    value: "Fufu",
+    reaction: { type: "text", message: "Some things are just between us." },
   },
 ];
 
@@ -135,10 +146,17 @@ export type ScrapbookMemory = {
   caption: string;
   photo: string; // path in /public/assets/photos
   rotation: number; // for scattered look
+  isTest?: boolean; // shows a "TEST — replace me" badge; remove before launch
 };
 
 export const scrapbookMemories: ScrapbookMemory[] = [
-  { id: "m1", caption: "PLACEHOLDER — memory one.", photo: "/assets/photos/placeholder-1.jpg", rotation: -6 },
+  {
+    id: "test",
+    caption: "Test placeholder — swap this for a real photo before launch.",
+    photo: "/assets/photos/TEST-PLACEHOLDER-remove-me.jpg",
+    rotation: -5,
+    isTest: true,
+  },
   { id: "m2", caption: "PLACEHOLDER — memory two.", photo: "/assets/photos/placeholder-2.jpg", rotation: 4 },
   { id: "m3", caption: "PLACEHOLDER — memory three.", photo: "/assets/photos/placeholder-3.jpg", rotation: -3 },
   { id: "m4", caption: "PLACEHOLDER — memory four.", photo: "/assets/photos/placeholder-4.jpg", rotation: 7 },
@@ -158,7 +176,9 @@ export const future = {
 };
 
 export const music = {
-  // Drop an mp3 in /public/assets/music and update this path.
-  src: "/assets/music/ambient.mp3",
-  label: "Ambient soundtrack",
+  // The whole-site background track, toggled by the floating music button.
+  // Drop your own legally-owned copy of Super Trouper here and match the
+  // filename — Claude can't source or embed the actual song file.
+  src: "/assets/music/super-trouper.mp3",
+  label: "Super Trouper — ABBA",
 };

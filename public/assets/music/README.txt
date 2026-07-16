@@ -1,8 +1,11 @@
-Drop one ambient/instrumental mp3 here (e.g. ambient.mp3) and make sure
-the path in /lib/content.ts under `music.src` matches. Muted/paused by
-default — the visitor has to tap the floating button to play it.
+Drop your own legally-owned copy of "Super Trouper" by ABBA here, named
+super-trouper.mp3 (or update the paths below to match your filename).
 
-Also drop your own legally-owned copy of the Chapter 2 ABBA easter egg here
-(e.g. super-trouper.mp3) and match the path in `littleThings` → the "Favorite
-music" card's `reaction.src` in /lib/content.ts. Claude can't source or embed
-that file itself — it's on you to supply audio you already own.
+It's used in two places, both pointing at the same file:
+1. The main floating music button — background music for the whole site
+   (music.src in /lib/content.ts)
+2. The Chapter 2 "Favorite music" card easter egg (littleThings in
+   /lib/content.ts)
+
+Claude can't source or embed the actual song file — that's on you to supply.
+

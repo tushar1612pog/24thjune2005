@@ -46,6 +46,11 @@ function ScrapbookCard({
             </span>
           </div>
         )}
+        {memory.isTest && (
+          <span className="pointer-events-none absolute left-1 top-1 rounded-full bg-coral px-2 py-0.5 font-body text-[9px] font-semibold uppercase tracking-wider text-vanilla shadow">
+            Test — replace me
+          </span>
+        )}
       </div>
       {opened && (
         <motion.p
