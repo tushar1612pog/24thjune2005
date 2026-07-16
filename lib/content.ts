@@ -4,7 +4,13 @@
 // ─────────────────────────────────────────────────────────
 
 export const intro = {
-  loading: "Collecting memories…",
+  loadingPhrases: [
+    "Collecting little moments…",
+    "Finding forgotten smiles…",
+    "Dusting off old memories…",
+    "Putting the pieces together…",
+    "Almost ready…",
+  ],
   lines: [
     "I've always believed…",
     "…every person lives a story.",

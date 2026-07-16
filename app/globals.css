@@ -40,6 +40,41 @@ body {
   overflow: hidden;
 }
 
+/* Typography system: body copy should never run wider than ~60-70
+   characters per line, regardless of container width. */
+.measure {
+  max-width: 34ch;
+}
+.measure-wide {
+  max-width: 58ch;
+}
+
+/* Soft dark vignette toward the edges of the viewport. */
+.vignette {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  background: radial-gradient(
+    ellipse at center,
+    transparent 55%,
+    rgba(74, 59, 82, 0.16) 100%
+  );
+}
+
+/* Faint warm glow, center-weighted, for atmosphere rather than light. */
+.warm-bloom {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  background: radial-gradient(
+    ellipse at 50% 40%,
+    rgba(232, 176, 75, 0.06) 0%,
+    transparent 60%
+  );
+}
+
 .journey-scroll {
   height: 100svh;
   overflow-y: auto;

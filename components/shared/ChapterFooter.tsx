@@ -1,6 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
+import PillButton from "@/components/shared/PillButton";
 
 type ChapterFooterProps = {
   onNext: () => void;
@@ -35,17 +36,15 @@ export default function ChapterFooter({
           {hint}
         </span>
       )}
-      <button
+      <PillButton
+        variant="secondary"
+        size="md"
+        dark={dark}
         onClick={onNext}
         disabled={disabled}
-        className={`rounded-full border px-8 py-3 font-body text-xs tracking-[0.2em] transition-all disabled:cursor-not-allowed disabled:opacity-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-coral ${
-          dark
-            ? "border-vanilla/25 text-vanilla/80 hover:border-gold hover:text-gold"
-            : "border-plum/20 text-plum/80 hover:border-coral hover:text-coral"
-        }`}
       >
-        {label.toUpperCase()}
-      </button>
+        {label}
+      </PillButton>
     </motion.div>
   );
 }
