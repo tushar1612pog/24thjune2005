@@ -30,6 +30,17 @@ export const littleThings: {
   reaction: LittleThingReaction;
 }[] = [
   {
+    label: "Favorite music",
+    value: "ABBA",
+    // Drop your own legally-owned mp3 in /public/assets/music/ and point
+    // this at it — e.g. "/assets/music/super-trouper.mp3".
+    reaction: {
+      type: "audio",
+      src: "/assets/music/super-trouper.mp3",
+      message: "Super Trouper, just for you.",
+    },
+  },
+  {
     label: "Favorite scent",
     value: "Vanilla",
     reaction: { type: "text", message: "You've been vanilla'd." },
@@ -53,17 +64,6 @@ export const littleThings: {
     label: "Favorite time of day",
     value: "Sunset",
     reaction: { type: "text", message: "Golden hour, activated." },
-  },
-  {
-    label: "Favorite music",
-    value: "ABBA",
-    // Drop your own legally-owned mp3 in /public/assets/music/ and point
-    // this at it — e.g. "/assets/music/super-trouper.mp3".
-    reaction: {
-      type: "audio",
-      src: "/assets/music/super-trouper.mp3",
-      message: "Super Trouper, just for you.",
-    },
   },
   {
     label: "Recharge ritual",
