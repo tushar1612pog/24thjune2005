@@ -75,8 +75,8 @@ export const littleThings: {
 export type Destination = {
   id: string;
   name: string;
-  x: number; // % position on map, 0-100
-  y: number;
+  lat: number; // degrees, -90 (south) to 90 (north)
+  lon: number; // degrees, -180 to 180
   reason: string;
 };
 
@@ -84,22 +84,23 @@ export const destinations: Destination[] = [
   {
     id: "cabin",
     name: "A cozy cabin, somewhere in the mountains",
-    x: 28,
-    y: 34,
+    // Placeholder coordinates — swap for a real spot that means something.
+    lat: 44,
+    lon: -110,
     reason: "PLACEHOLDER — why this place matters to her.",
   },
   {
     id: "beach",
     name: "A quiet beach at low tide",
-    x: 62,
-    y: 58,
+    lat: -8.5,
+    lon: 115.2,
     reason: "PLACEHOLDER — a beach memory or dream.",
   },
   {
     id: "somewhere-new",
     name: "Somewhere neither of you have been yet",
-    x: 78,
-    y: 30,
+    lat: 35,
+    lon: 135.7,
     reason: "PLACEHOLDER — a future trip you're planning together.",
   },
 ];
