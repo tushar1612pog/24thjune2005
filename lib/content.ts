@@ -30,17 +30,6 @@ export const littleThings: {
   reaction: LittleThingReaction;
 }[] = [
   {
-    label: "Favorite music",
-    value: "ABBA",
-    // Drop your own legally-owned mp3 in /public/assets/music/ and point
-    // this at it — e.g. "/assets/music/super-trouper.mp3".
-    reaction: {
-      type: "audio",
-      src: "/assets/music/super-trouper.mp3",
-      message: "Super Trouper, just for you.",
-    },
-  },
-  {
     label: "Favorite scent",
     value: "Vanilla",
     reaction: { type: "text", message: "You've been vanilla'd." },
@@ -66,6 +55,17 @@ export const littleThings: {
     reaction: { type: "text", message: "Golden hour, activated." },
   },
   {
+    label: "Favorite music",
+    value: "ABBA",
+    // Drop your own legally-owned mp3 in /public/assets/music/ and point
+    // this at it — e.g. "/assets/music/super-trouper.mp3".
+    reaction: {
+      type: "audio",
+      src: "/assets/music/super-trouper.mp3",
+      message: "Super Trouper, just for you.",
+    },
+  },
+  {
     label: "Recharge ritual",
     value: "Fufu",
     reaction: { type: "text", message: "Some things are just between us." },
@@ -75,33 +75,35 @@ export const littleThings: {
 export type Destination = {
   id: string;
   name: string;
-  lat: number; // degrees, -90 (south) to 90 (north)
-  lon: number; // degrees, -180 to 180
+  x: number; // % position on map, 0-100
+  y: number;
   reason: string;
 };
 
 export const destinations: Destination[] = [
   {
     id: "cabin",
-    name: "A cozy cabin, somewhere in the mountains",
-    // Placeholder coordinates — swap for a real spot that means something.
-    lat: 44,
-    lon: -110,
-    reason: "PLACEHOLDER — why this place matters to her.",
+    name: "Switzerland",
+    x: 54,
+    y: 31,
+    reason:
+      "You once said if you could wake up anywhere in the world, it would be somewhere like this—surrounded by mountains, quiet mornings, and me beside you. Maybe one day this won't just be a dream on a map.",
   },
   {
     id: "beach",
-    name: "A quiet beach at low tide",
-    lat: -8.5,
-    lon: 115.2,
-    reason: "PLACEHOLDER — a beach memory or dream.",
+    name: "A Beach at Sunset",
+    x: 31,
+    y: 64,
+    reason:
+      "You always choose sunsets over sunrises. There's something about the sky slowly changing colours that feels like you—calm, warm, and quietly beautiful. I hope we watch countless sunsets together.",
   },
   {
     id: "somewhere-new",
-    name: "Somewhere neither of you have been yet",
-    lat: 35,
-    lon: 135.7,
-    reason: "PLACEHOLDER — a future trip you're planning together.",
+    name: "To Be Continued...",
+    x: 75,
+    y: 48,
+    reason:
+      "This place doesn't exist on any map yet. It's every adventure we haven't taken, every city we haven't explored, every memory we haven't created. One day, we'll add this destination together.",
   },
 ];
 
@@ -181,4 +183,3 @@ export const future = {
   seedPrompt: "Plant a seed.",
   finalLine: "I can't wait to keep growing beside you.",
 };
-

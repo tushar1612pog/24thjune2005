@@ -1,646 +1,131 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AnimatePresence, animate, motion } from "framer-motion";
+import { useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import ChapterFooter from "@/components/shared/ChapterFooter";
-import ParticleField from "@/components/shared/ParticleField";
 import { destinations } from "@/lib/content";
-import { CONTINENTS } from "@/lib/globeContinents";
-import {
-  clamp,
-  easeInOutCubic,
-  latLonToVec3,
-  lerp,
-  lerpAngle,
-  rotate,
-  rotationToFace,
-  slerp,
-  toRad,
-  type Vec3,
-} from "@/lib/globeMath";
 
-// ── tunables — nothing here changes the math, just the feel ──────────────
-const MIN_ZOOM = 0.78;
-const MAX_ZOOM = 1.55;
-const FOCUS_ZOOM = 1.22;
-const START_ZOOM = 0.5;
-const DRAG_SENSITIVITY = 0.0052;
-const MAX_PHI = toRad(72);
-const AUTOROTATE_SPEED = toRad(2.1); // radians / second, deliberately slow
-const FRICTION = 0.945;
-const HIT_RADIUS = 26; // px
-const FLIGHT_DURATION = 1500; // ms, camera fly-to-marker
-const ARRIVAL_PAUSE = 450; // ms, breath before the journal opens
-const PATH_DRAW_DURATION = 1300; // ms, ink-spreading route line
+const cardPositions = [
+  "left-[8%] top-[45%] md:left-[13%] md:top-[34%]",
+  "left-[8%] top-[19%] md:left-[14%] md:top-[19%]",
+  "right-[7%] top-[18%] md:right-[12%] md:top-[20%]",
+];
 
-const ZOOM_IN_DELAY = 2200; // ms — how long we let the globe just sit there
-const ZOOM_IN_DURATION = 1900;
-const READY_DELAY = 2500;
+function playPaperSound(isNewLocation: boolean) {
+  try {
+    const context = new AudioContext();
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
 
-type FlightState = {
-  fromLambda: number;
-  fromPhi: number;
-  toLambda: number;
-  toPhi: number;
-  start: number;
-  targetId: string;
-};
+    oscillator.type = "sine";
+    oscillator.frequency.setValueAtTime(isNewLocation ? 420 : 300, context.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(
+      isNewLocation ? 680 : 430,
+      context.currentTime + 0.14,
+    );
+    gain.gain.setValueAtTime(0.0001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.025, context.currentTime + 0.025);
+    gain.gain.exponentialRampToValueAtTime(0.0001, context.currentTime + 0.22);
+    oscillator.connect(gain).connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.24);
+    oscillator.onended = () => context.close();
+  } catch {
+  }
+}
 
 export default function Chapter3TravelMap({ onNext }: { onNext: () => void }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const wrapperRef = useRef<HTMLDivElement>(null);
-  const layerRefs = useRef<Array<HTMLDivElement | null>>([]);
-
-  // Mutable render state lives in refs, not React state — the draw loop
-  // reads/writes these every frame without triggering re-renders.
-  const rotationRef = useRef({ lambda: toRad(-25), phi: toRad(18) });
-  const velocityRef = useRef({ vLambda: 0, vPhi: 0 });
-  const zoomRef = useRef(START_ZOOM);
-  const zoomTargetRef = useRef(START_ZOOM);
-  const draggingRef = useRef(false);
-  const dragMovedRef = useRef(false);
-  const lastPointerRef = useRef({ x: 0, y: 0 });
-  const pointersRef = useRef<Map<number, { x: number; y: number }>>(new Map());
-  const pinchRef = useRef<{ startDist: number; startZoom: number } | null>(null);
-  const flightRef = useRef<FlightState | null>(null);
-  const arrivalTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const segmentTimesRef = useRef<Record<string, number>>({});
-  const visitedOrderRef = useRef<string[]>([]);
-  const focusedIdRef = useRef<string | null>(null);
-  const chimeCtxRef = useRef<AudioContext | null>(null);
-
-  const [phase, setPhase] = useState<"intro" | "ready">("intro");
-  const [focusedId, setFocusedId] = useState<string | null>(null);
-  const [visitedOrder, setVisitedOrder] = useState<string[]>([]);
-
-  const focusedDestination = destinations.find((d) => d.id === focusedId) ?? null;
-  const allVisited = visitedOrder.length === destinations.length;
+  const [active, setActive] = useState<string | null>(null);
+  const [visited, setVisited] = useState<Set<string>>(new Set());
+  const [pointer, setPointer] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
-    visitedOrderRef.current = visitedOrder;
-  }, [visitedOrder]);
-  useEffect(() => {
-    focusedIdRef.current = focusedId;
-  }, [focusedId]);
-
-  // A new segment of the golden route appeared — remember when, so the
-  // draw loop can animate it filling in like ink spreading across paper.
-  useEffect(() => {
-    if (visitedOrder.length < 2) return;
-    const a = visitedOrder[visitedOrder.length - 2];
-    const b = visitedOrder[visitedOrder.length - 1];
-    segmentTimesRef.current[`${a}|${b}`] = performance.now();
-  }, [visitedOrder.length]);
-
-  // A tiny synthesized chime for the discovery moment — no audio asset
-  // needed, just a couple of soft sine tones through the Web Audio API.
-  const playChime = useCallback(() => {
-    try {
-      const AudioCtx = window.AudioContext ?? (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-      if (!AudioCtx) return;
-      if (!chimeCtxRef.current) chimeCtxRef.current = new AudioCtx();
-      const ctx = chimeCtxRef.current;
-      const now = ctx.currentTime;
-      [880, 1318.5].forEach((freq, i) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = "sine";
-        osc.frequency.value = freq;
-        const t0 = now + i * 0.09;
-        gain.gain.setValueAtTime(0, t0);
-        gain.gain.linearRampToValueAtTime(0.05, t0 + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.9);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(t0);
-        osc.stop(t0 + 1);
+    const handlePointerMove = (event: PointerEvent) => {
+      setPointer({
+        x: (event.clientX / window.innerWidth - 0.5) * 10,
+        y: (event.clientY / window.innerHeight - 0.5) * 10,
       });
-    } catch {
-      // Web Audio unavailable — the visual arrival still lands fine without it.
-    }
+    };
+    window.addEventListener("pointermove", handlePointerMove);
+    return () => window.removeEventListener("pointermove", handlePointerMove);
   }, []);
 
-  const selectDestination = useCallback((id: string) => {
-    const dest = destinations.find((d) => d.id === id);
-    if (!dest) return;
-    if (flightRef.current?.targetId === id) return; // already headed there
-    if (arrivalTimeoutRef.current) clearTimeout(arrivalTimeoutRef.current);
-    setFocusedId(null);
+  const activeIndex = destinations.findIndex((destination) => destination.id === active);
+  const activeDestination = activeIndex >= 0 ? destinations[activeIndex] : null;
+  const allVisited = visited.size === destinations.length;
 
-    const { lambda: toLambda, phi: toPhi } = rotationToFace(dest.lat, dest.lon);
-    flightRef.current = {
-      fromLambda: rotationRef.current.lambda,
-      fromPhi: rotationRef.current.phi,
-      toLambda,
-      toPhi: clamp(toPhi, -MAX_PHI, MAX_PHI),
-      start: performance.now(),
-      targetId: id,
-    };
-    velocityRef.current = { vLambda: 0, vPhi: 0 };
-    zoomTargetRef.current = FOCUS_ZOOM;
-  }, []);
-
-  // ── camera intro: sit still, then drift closer, then reveal the title ──
-  useEffect(() => {
-    let controls: { stop: () => void } | null = null;
-    const t1 = setTimeout(() => {
-      controls = animate(zoomTargetRef.current, 1, {
-        duration: ZOOM_IN_DURATION / 1000,
-        ease: [0.16, 1, 0.3, 1],
-        onUpdate: (v) => {
-          zoomTargetRef.current = v;
-        },
-      });
-    }, ZOOM_IN_DELAY);
-    const t2 = setTimeout(() => setPhase("ready"), READY_DELAY);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      controls?.stop();
-    };
-  }, []);
-
-  useEffect(() => {
-    return () => {
-      if (arrivalTimeoutRef.current) clearTimeout(arrivalTimeoutRef.current);
-      chimeCtxRef.current?.close().catch(() => {});
-    };
-  }, []);
-
-  // ── the render loop: one canvas, one rAF, everything drawn by hand ──────
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    const wrapper = wrapperRef.current;
-    if (!canvas || !wrapper) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    let raf = 0;
-    let last = performance.now();
-
-    const resize = () => {
-      const rect = wrapper.getBoundingClientRect();
-      const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = Math.round(rect.width * dpr);
-      canvas.height = Math.round(rect.height * dpr);
-      canvas.style.width = `${rect.width}px`;
-      canvas.style.height = `${rect.height}px`;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    };
-    resize();
-    const ro = new ResizeObserver(resize);
-    ro.observe(wrapper);
-
-    const project = (p: Vec3, cx: number, cy: number, R: number) => {
-      const r = rotate(p, rotationRef.current.lambda, rotationRef.current.phi);
-      return { x: cx + r.x * R, y: cy - r.y * R, z: r.z };
-    };
-
-    const drawFrame = (now: number) => {
-      const dt = Math.min((now - last) / 1000, 0.05);
-      last = now;
-
-      const flight = flightRef.current;
-      if (flight) {
-        const t = clamp((now - flight.start) / FLIGHT_DURATION, 0, 1);
-        const eased = easeInOutCubic(t);
-        rotationRef.current.lambda = lerpAngle(flight.fromLambda, flight.toLambda, eased);
-        rotationRef.current.phi = lerp(flight.fromPhi, flight.toPhi, eased);
-        if (t >= 1) {
-          flightRef.current = null;
-          const id = flight.targetId;
-          arrivalTimeoutRef.current = setTimeout(() => {
-            setFocusedId(id);
-            setVisitedOrder((prev) => (prev.includes(id) ? prev : [...prev, id]));
-            playChime();
-          }, ARRIVAL_PAUSE);
-        }
-      } else if (draggingRef.current) {
-        // rotation is updated directly by the pointer-move handler
-      } else if (Math.abs(velocityRef.current.vLambda) > 0.00005 || Math.abs(velocityRef.current.vPhi) > 0.00005) {
-        rotationRef.current.lambda += velocityRef.current.vLambda;
-        rotationRef.current.phi = clamp(rotationRef.current.phi + velocityRef.current.vPhi, -MAX_PHI, MAX_PHI);
-        velocityRef.current.vLambda *= FRICTION;
-        velocityRef.current.vPhi *= FRICTION;
-      } else {
-        rotationRef.current.lambda += AUTOROTATE_SPEED * dt;
-      }
-
-      zoomRef.current = lerp(zoomRef.current, zoomTargetRef.current, 0.08);
-
-      const w = canvas.clientWidth;
-      const h = canvas.clientHeight;
-      const cx = w / 2;
-      const cy = h / 2;
-      const R = Math.min(w, h) * 0.36 * zoomRef.current;
-
-      ctx.clearRect(0, 0, w, h);
-
-      // soft outer atmosphere
-      const glow = ctx.createRadialGradient(cx, cy, R * 0.9, cx, cy, R * 1.35);
-      glow.addColorStop(0, "rgba(232,176,75,0.16)");
-      glow.addColorStop(1, "rgba(232,176,75,0)");
-      ctx.fillStyle = glow;
-      ctx.beginPath();
-      ctx.arc(cx, cy, R * 1.35, 0, Math.PI * 2);
-      ctx.fill();
-
-      // globe base — muted blue-grey "ocean"
-      const base = ctx.createRadialGradient(cx - R * 0.3, cy - R * 0.35, R * 0.1, cx, cy, R);
-      base.addColorStop(0, "#8B98A8");
-      base.addColorStop(0.55, "#6D7C8F");
-      base.addColorStop(1, "#48546A");
-      ctx.fillStyle = base;
-      ctx.beginPath();
-      ctx.arc(cx, cy, R, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(cx, cy, R, 0, Math.PI * 2);
-      ctx.clip();
-
-      // graticule — faint vintage cartography lines
-      ctx.strokeStyle = "rgba(251,243,231,0.14)";
-      ctx.lineWidth = 1;
-      for (let lon = -180; lon < 180; lon += 30) {
-        ctx.beginPath();
-        let started = false;
-        for (let lat = -90; lat <= 90; lat += 4) {
-          const p = project(latLonToVec3(lat, lon), cx, cy, R);
-          if (p.z <= 0) {
-            started = false;
-            continue;
-          }
-          if (!started) {
-            ctx.moveTo(p.x, p.y);
-            started = true;
-          } else ctx.lineTo(p.x, p.y);
-        }
-        ctx.stroke();
-      }
-      for (let lat = -60; lat <= 60; lat += 30) {
-        ctx.beginPath();
-        let started = false;
-        for (let lon = -180; lon <= 180; lon += 4) {
-          const p = project(latLonToVec3(lat, lon), cx, cy, R);
-          if (p.z <= 0) {
-            started = false;
-            continue;
-          }
-          if (!started) {
-            ctx.moveTo(p.x, p.y);
-            started = true;
-          } else ctx.lineTo(p.x, p.y);
-        }
-        ctx.stroke();
-      }
-
-      // continents — faded parchment
-      ctx.fillStyle = "rgba(234,217,184,0.88)";
-      ctx.strokeStyle = "rgba(201,162,39,0.35)";
-      ctx.lineWidth = 1;
-      CONTINENTS.forEach((poly) => {
-        ctx.beginPath();
-        let started = false;
-        let visiblePoints = 0;
-        poly.forEach(({ lat, lon }) => {
-          const p = project(latLonToVec3(lat, lon), cx, cy, R);
-          if (p.z <= -0.05) {
-            started = false;
-            return;
-          }
-          visiblePoints++;
-          if (!started) {
-            ctx.moveTo(p.x, p.y);
-            started = true;
-          } else ctx.lineTo(p.x, p.y);
-        });
-        if (visiblePoints >= 3) {
-          ctx.closePath();
-          ctx.fill();
-          ctx.stroke();
-        }
-      });
-
-      // golden travel path — draws itself like ink spreading across paper
-      ctx.strokeStyle = "#E8B04B";
-      ctx.lineWidth = 1.6;
-      ctx.shadowColor = "rgba(232,176,75,0.6)";
-      ctx.shadowBlur = 4;
-      for (let i = 0; i < visitedOrderRef.current.length - 1; i++) {
-        const aId = visitedOrderRef.current[i];
-        const bId = visitedOrderRef.current[i + 1];
-        const a = destinations.find((d) => d.id === aId);
-        const b = destinations.find((d) => d.id === bId);
-        if (!a || !b) continue;
-        const startedAt = segmentTimesRef.current[`${aId}|${bId}`] ?? now;
-        const progress = easeInOutCubic(clamp((now - startedAt) / PATH_DRAW_DURATION, 0, 1));
-        const va = latLonToVec3(a.lat, a.lon);
-        const vb = latLonToVec3(b.lat, b.lon);
-        const steps = 48;
-        const limit = Math.round(steps * progress);
-        ctx.beginPath();
-        let started = false;
-        for (let s = 0; s <= limit; s++) {
-          const p = project(slerp(va, vb, s / steps), cx, cy, R);
-          if (p.z <= 0) {
-            started = false;
-            continue;
-          }
-          if (!started) {
-            ctx.moveTo(p.x, p.y);
-            started = true;
-          } else ctx.lineTo(p.x, p.y);
-        }
-        ctx.stroke();
-      }
-      ctx.shadowBlur = 0;
-
-      ctx.restore(); // end clip to disc
-
-      // limb shading for roundness
-      const limb = ctx.createRadialGradient(cx, cy, R * 0.7, cx, cy, R);
-      limb.addColorStop(0, "rgba(30,25,20,0)");
-      limb.addColorStop(1, "rgba(30,25,20,0.35)");
-      ctx.fillStyle = limb;
-      ctx.beginPath();
-      ctx.arc(cx, cy, R, 0, Math.PI * 2);
-      ctx.fill();
-
-      // markers — glowing brass-and-gold pins
-      destinations.forEach((d) => {
-        const p = project(latLonToVec3(d.lat, d.lon), cx, cy, R);
-        if (p.z <= 0.04) return;
-        const visited = visitedOrderRef.current.includes(d.id);
-        const focused = focusedIdRef.current === d.id;
-        const pulse = 0.7 + Math.sin(now / 650 + d.lat) * 0.3;
-        const baseR = focused ? 7 : 4.4;
-        const glowR = baseR * (2.4 + (focused ? pulse * 1.4 : pulse * 0.6));
-
-        const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, glowR);
-        g.addColorStop(0, visited ? "rgba(232,176,75,0.85)" : "rgba(232,176,75,0.55)");
-        g.addColorStop(1, "rgba(232,176,75,0)");
-        ctx.fillStyle = g;
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, glowR, 0, Math.PI * 2);
-        ctx.fill();
-
-        ctx.fillStyle = visited ? "#FBF3E7" : "#F4C7B6";
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, baseR * (0.55 + pulse * 0.15), 0, Math.PI * 2);
-        ctx.fill();
-      });
-
-      // background parallax — layers drift opposite the globe's rotation
-      const dLambda = rotationRef.current.lambda - toRad(-25);
-      const dPhi = rotationRef.current.phi - toRad(18);
-      layerRefs.current.forEach((el, i) => {
-        if (!el) return;
-        const factor = (i + 1) * 3.2;
-        el.style.transform = `translate3d(${-dLambda * factor}px, ${dPhi * factor}px, 0)`;
-      });
-
-      raf = requestAnimationFrame(drawFrame);
-    };
-
-    raf = requestAnimationFrame(drawFrame);
-    return () => {
-      cancelAnimationFrame(raf);
-      ro.disconnect();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ── pointer interaction: drag to rotate, pinch/wheel to zoom, tap a marker ──
-  const getRelPos = useCallback((clientX: number, clientY: number) => {
-    const rect = canvasRef.current!.getBoundingClientRect();
-    return { x: clientX - rect.left, y: clientY - rect.top };
-  }, []);
-
-  const handleTap = useCallback(
-    (pos: { x: number; y: number }) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const w = canvas.clientWidth;
-      const h = canvas.clientHeight;
-      const cx = w / 2;
-      const cy = h / 2;
-      const R = Math.min(w, h) * 0.36 * zoomRef.current;
-
-      let bestId: string | null = null;
-      let bestDist = HIT_RADIUS;
-      destinations.forEach((d) => {
-        const r = rotate(latLonToVec3(d.lat, d.lon), rotationRef.current.lambda, rotationRef.current.phi);
-        if (r.z <= 0.04) return;
-        const sx = cx + r.x * R;
-        const sy = cy - r.y * R;
-        const dist = Math.hypot(pos.x - sx, pos.y - sy);
-        if (dist < bestDist) {
-          bestDist = dist;
-          bestId = d.id;
-        }
-      });
-      if (bestId) selectDestination(bestId);
-    },
-    [selectDestination]
-  );
-
-  const handlePointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (phase !== "ready") return;
-    e.currentTarget.setPointerCapture(e.pointerId);
-    const pos = getRelPos(e.clientX, e.clientY);
-    pointersRef.current.set(e.pointerId, pos);
-    flightRef.current = null; // a touch interrupts any camera flight in progress
-
-    if (pointersRef.current.size === 1) {
-      draggingRef.current = true;
-      dragMovedRef.current = false;
-      velocityRef.current = { vLambda: 0, vPhi: 0 };
-      lastPointerRef.current = pos;
-    } else if (pointersRef.current.size === 2) {
-      draggingRef.current = false;
-      const pts = Array.from(pointersRef.current.values());
-      pinchRef.current = {
-        startDist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y),
-        startZoom: zoomTargetRef.current,
-      };
-    }
-  }, [phase, getRelPos]);
-
-  const handlePointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!pointersRef.current.has(e.pointerId)) return;
-    const pos = getRelPos(e.clientX, e.clientY);
-    pointersRef.current.set(e.pointerId, pos);
-
-    if (pointersRef.current.size === 2 && pinchRef.current) {
-      const pts = Array.from(pointersRef.current.values());
-      const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
-      const ratio = dist / (pinchRef.current.startDist || 1);
-      zoomTargetRef.current = clamp(pinchRef.current.startZoom * ratio, MIN_ZOOM, MAX_ZOOM);
-      return;
-    }
-
-    if (draggingRef.current) {
-      const dx = pos.x - lastPointerRef.current.x;
-      const dy = pos.y - lastPointerRef.current.y;
-      if (Math.abs(dx) + Math.abs(dy) > 3) dragMovedRef.current = true;
-      rotationRef.current.lambda += dx * DRAG_SENSITIVITY;
-      rotationRef.current.phi = clamp(rotationRef.current.phi - dy * DRAG_SENSITIVITY, -MAX_PHI, MAX_PHI);
-      velocityRef.current.vLambda = dx * DRAG_SENSITIVITY;
-      velocityRef.current.vPhi = -dy * DRAG_SENSITIVITY;
-      lastPointerRef.current = pos;
-    }
-  }, [getRelPos]);
-
-  const handlePointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
-    const wasSingleDrag = draggingRef.current && pointersRef.current.size === 1;
-    const pos = pointersRef.current.get(e.pointerId) ?? getRelPos(e.clientX, e.clientY);
-    pointersRef.current.delete(e.pointerId);
-    pinchRef.current = null;
-
-    if (pointersRef.current.size === 0) {
-      draggingRef.current = false;
-      if (wasSingleDrag && !dragMovedRef.current) handleTap(pos);
-    } else if (pointersRef.current.size === 1) {
-      draggingRef.current = true;
-      dragMovedRef.current = false;
-      velocityRef.current = { vLambda: 0, vPhi: 0 };
-      lastPointerRef.current = Array.from(pointersRef.current.values())[0];
-    }
-  }, [getRelPos, handleTap]);
-
-  const handleWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
-    if (phase !== "ready") return;
-    e.preventDefault();
-    zoomTargetRef.current = clamp(zoomTargetRef.current - e.deltaY * 0.0012, MIN_ZOOM, MAX_ZOOM);
-  }, [phase]);
-
-  // deterministic "random" star field — no hydration mismatch
-  const stars = useMemo(
-    () =>
-      Array.from({ length: 40 }, (_, i) => ({
-        id: i,
-        left: (i * 17.3) % 100,
-        top: (i * 29.7 + i * 3) % 100,
-        size: 1 + (i % 3),
-        delay: (i % 10) * 0.3,
-      })),
-    []
-  );
+  const openPin = (id: string) => {
+    const isNewLocation = !visited.has(id);
+    setActive(id);
+    setVisited((previous) => new Set(previous).add(id));
+    playPaperSound(isNewLocation);
+  };
 
   return (
-    <div className="relative flex h-full w-full flex-col items-center justify-center overflow-hidden bg-plum px-6 py-16">
-      {/* atmospheric background — five independent layers, each drifting
-          a little against the globe's rotation to create depth */}
-      <div ref={(el) => { layerRefs.current[0] = el; }} className="pointer-events-none absolute inset-0">
-        {stars.map((s) => (
-          <span
-            key={s.id}
-            className="absolute rounded-full bg-vanilla animate-flicker"
-            style={{ left: `${s.left}%`, top: `${s.top}%`, width: s.size, height: s.size, opacity: 0.5, animationDelay: `${s.delay}s` }}
-          />
-        ))}
-      </div>
-      <div ref={(el) => { layerRefs.current[1] = el; }} className="pointer-events-none absolute inset-0">
-        <ParticleField count={14} color="#F4C7B6" />
-      </div>
-      <div ref={(el) => { layerRefs.current[2] = el; }} className="pointer-events-none absolute inset-0">
-        <div className="absolute left-1/4 top-1/3 h-56 w-56 rounded-full bg-coral/10 blur-3xl" />
-        <div className="absolute bottom-1/4 right-1/4 h-64 w-64 rounded-full bg-gold/10 blur-3xl" />
-      </div>
-      <div ref={(el) => { layerRefs.current[3] = el; }} className="pointer-events-none absolute inset-0">
-        <ParticleField count={10} color="#E8B04B" />
-      </div>
-      <div ref={(el) => { layerRefs.current[4] = el; }} className="pointer-events-none absolute inset-0">
-        <div className="absolute left-1/3 top-1/2 h-40 w-72 rounded-full bg-vanilla/5 blur-3xl animate-drift" />
-      </div>
-
-      <p className="relative z-10 mb-2 mt-4 font-body text-xs uppercase tracking-[0.3em] text-gold">
-        Chapter Three
-      </p>
-
-      <AnimatePresence>
-        {phase === "ready" && (
-          <motion.h2
-            initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}
-            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-            transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] }}
-            className="relative z-10 mb-2 text-center font-display text-3xl text-vanilla md:text-5xl"
-          >
-            The World Through Your Eyes
-          </motion.h2>
-        )}
-      </AnimatePresence>
-
+    <section className="relative flex h-full w-full items-center justify-center overflow-hidden px-5 py-20 md:px-10">
       <motion.div
-        ref={wrapperRef}
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 1.6, ease: "easeOut" }}
-        className="relative z-10 h-[380px] w-full max-w-xl md:h-[480px]"
-      >
-        <canvas
-          ref={canvasRef}
-          className="h-full w-full touch-none"
-          style={{ cursor: phase === "ready" ? "grab" : "default" }}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerUp}
-          onPointerCancel={handlePointerUp}
-          onWheel={handleWheel}
-        />
-      </motion.div>
-
-      <AnimatePresence>
-        {focusedDestination && (
-          <motion.div
-            key={focusedDestination.id}
-            initial={{ opacity: 0, y: 36, scaleY: 0.6 }}
-            animate={{ opacity: 1, y: 0, scaleY: 1 }}
-            exit={{ opacity: 0, y: 20, scaleY: 0.85 }}
-            transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
-            style={{ transformOrigin: "top center" }}
-            className="absolute bottom-24 left-1/2 z-20 w-[90%] max-w-sm -translate-x-1/2 rounded-2xl border border-gold/30 bg-vanilla px-6 py-5 shadow-[0_20px_60px_rgba(0,0,0,0.35)]"
-          >
-            <div aria-hidden="true" className="pointer-events-none absolute -top-3 left-6 text-2xl">
-              🌸
-            </div>
-            <p className="font-body text-[10px] uppercase tracking-[0.3em] text-coral/70">
-              {String(visitedOrder.indexOf(focusedDestination.id) + 1).padStart(2, "0")} — discovered
-            </p>
-            <p className="mt-2 font-display text-lg italic text-plum">{focusedDestination.name}</p>
-            <p className="mt-2 font-body text-sm leading-relaxed text-plum/70">{focusedDestination.reason}</p>
-            <button
-              onClick={() => setFocusedId(null)}
-              className="mt-4 font-body text-xs uppercase tracking-widest text-plum/40 transition-colors hover:text-plum/70"
-            >
-              Close
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {phase === "ready" && !focusedDestination && (
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.6, duration: 0.8 }}
-          className="relative z-10 mt-3 font-body text-xs text-vanilla/40"
-        >
-          {visitedOrder.length === 0
-            ? "Turn the globe. A light will find you."
-            : "Keep exploring — more of the world is waiting."}
-        </motion.p>
-      )}
-
-      <ChapterFooter
-        onNext={onNext}
-        disabled={!allVisited}
-        label="Continue to Chapter Four"
-        hint="Every place carries a story."
-        variant="dark"
+        aria-hidden="true"
+        animate={{
+          scale: activeDestination ? 1.08 : 1.035,
+          x: pointer.x - (activeDestination ? activeDestination.x - 50 : 0) * 0.18,
+          y: pointer.y - (activeDestination ? activeDestination.y - 50 : 0) * 0.12,
+        }}
+        transition={{ type: "spring", stiffness: 18, damping: 18, mass: 1.4 }}
+        className="absolute -inset-10 bg-[url('/assets/maps/vintage-world-map.png')] bg-cover bg-center opacity-75 blur-[1.5px]"
       />
-    </div>
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(251,243,231,0.12),rgba(74,59,82,0.38))]" />
+      <div className="absolute inset-0 bg-[linear-gradient(115deg,rgba(255,245,213,0.2),transparent_38%,rgba(126,91,56,0.12))]" />
+      <motion.div
+        aria-hidden="true"
+        animate={{ opacity: [0.08, 0.16, 0.08], x: [-12, 12, -12] }}
+        transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+        className="absolute -left-24 top-0 h-full w-1/2 bg-[linear-gradient(105deg,transparent,rgba(255,244,204,0.6),transparent)] blur-3xl"
+      />
+
+      <div className="relative z-10 h-[min(68vh,580px)] w-full max-w-6xl">
+        <header className="pointer-events-none absolute inset-x-0 top-0 z-20 text-center">
+          <p className="mb-2 font-body text-[10px] uppercase tracking-[0.32em] text-plum/65 md:text-xs">Chapter Three</p>
+          <h2 className="font-display text-3xl text-plum drop-shadow-[0_2px_10px_rgba(255,255,255,0.6)] md:text-5xl">The Places That Shaped You</h2>
+          <p className="mx-auto mt-2 max-w-sm font-body text-xs text-plum/65 md:text-sm">A few corners of the world, and all the stories they hold.</p>
+        </header>
+
+        <svg aria-hidden="true" viewBox="0 0 100 100" preserveAspectRatio="none" className="absolute inset-0 h-full w-full overflow-visible">
+          {destinations.slice(0, -1).map((destination, index) => {
+            const next = destinations[index + 1];
+            const visible = visited.has(destination.id) && visited.has(next.id);
+            return <motion.line key={destination.id} x1={destination.x} y1={destination.y} x2={next.x} y2={next.y} stroke="#B98732" strokeWidth="0.45" strokeLinecap="round" strokeDasharray="1.2 2" initial={{ pathLength: 0, opacity: 0 }} animate={{ pathLength: visible ? 1 : 0, opacity: visible ? 0.9 : 0 }} transition={{ duration: 1.35, ease: "easeInOut" }} />;
+          })}
+        </svg>
+
+        {destinations.map((destination, index) => {
+          const isActive = active === destination.id;
+          const isVisited = visited.has(destination.id);
+          return (
+            <motion.button key={destination.id} type="button" onClick={() => openPin(destination.id)} aria-label={`Open journal entry: ${destination.name}`} aria-pressed={isActive} style={{ left: `${destination.x}%`, top: `${destination.y}%` }} animate={{ scale: isActive ? 1.18 : 1, y: [0, -3, 0] }} transition={{ y: { duration: 3.8 + index, repeat: Infinity, ease: "easeInOut" } }} className="group absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-full p-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-4 focus-visible:ring-offset-vanilla">
+              <span className="relative block h-4 w-4 rotate-45 rounded-[4px] border border-[#8b5d1e] bg-gold shadow-[0_0_0_4px_rgba(232,176,75,0.18),0_3px_8px_rgba(74,59,82,0.32)] transition group-hover:scale-125 group-hover:shadow-[0_0_0_7px_rgba(232,176,75,0.25),0_3px_12px_rgba(74,59,82,0.35)]"><span className="absolute left-1/2 top-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-vanilla/90" /></span>
+              <span className="pointer-events-none absolute left-1/2 top-full mt-1 w-max -translate-x-1/2 font-body text-[10px] uppercase tracking-[0.16em] text-plum/70 opacity-0 transition group-hover:opacity-100">{isVisited ? "Revisit" : "Discover"}</span>
+            </motion.button>
+          );
+        })}
+
+        <AnimatePresence mode="wait">
+          {activeDestination && <motion.article key={activeDestination.id} initial={{ opacity: 0, rotateX: -12, scale: 0.92, y: 18 }} animate={{ opacity: 1, rotateX: 0, scale: 1, y: 0 }} exit={{ opacity: 0, rotateX: 8, scale: 0.96, y: 10 }} transition={{ type: "spring", stiffness: 150, damping: 18 }} className={`absolute z-20 w-[min(18rem,76vw)] rounded-[1.35rem] border border-[#a9773c]/30 bg-[#fff8e9]/90 p-5 shadow-[0_18px_45px_rgba(74,59,82,0.27),inset_0_0_28px_rgba(197,150,83,0.13)] backdrop-blur-sm md:w-80 md:p-6 ${cardPositions[activeIndex]}`}>
+            <span aria-hidden="true" className="absolute right-5 top-4 text-gold/70">✦</span>
+            <p className="font-body text-[10px] uppercase tracking-[0.23em] text-plum/45">Journal entry</p>
+            <h3 className="mt-2 pr-5 font-display text-xl italic text-plum md:text-2xl">{activeDestination.name}</h3>
+            <div className="my-4 h-px w-full bg-gradient-to-r from-transparent via-[#b98732]/50 to-transparent" />
+            <p className="font-body text-sm leading-relaxed text-plum/78">{activeDestination.reason}</p>
+          </motion.article>}
+        </AnimatePresence>
+
+        {!activeDestination && <p className="absolute inset-x-0 bottom-5 text-center font-body text-xs italic text-plum/60">Follow the golden marks on the page.</p>}
+
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+          {[15, 31, 59, 77, 88].map((left, index) => <motion.span key={left} initial={{ opacity: 0, y: 8 }} animate={{ opacity: [0, 0.7, 0], y: [-8, -28, -50] }} transition={{ duration: 5 + index, repeat: Infinity, delay: index * 0.8, ease: "easeOut" }} style={{ left: `${left}%`, top: `${56 + (index % 3) * 12}%` }} className="absolute h-1 w-1 rounded-full bg-[#fff3c6] shadow-[0_0_8px_2px_rgba(255,235,175,0.65)]" />)}
+        </div>
+      </div>
+
+      <div className="absolute bottom-5 z-30 w-full px-6 md:bottom-7"><ChapterFooter onNext={onNext} disabled={!allVisited} label="Continue to Chapter Four" hint="What you don't see in yourself." /></div>
+    </section>
   );
 }

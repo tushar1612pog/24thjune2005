@@ -29,10 +29,10 @@ export default function IntroSequence({ onBegin }: { onBegin: () => void }) {
 
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = [];
-    const PHRASE_INTERVAL = 2400;
-    const SILENCE_MS = 3400;
-    const BLOOM_TO_LINE_GAP = 1200;
-    const LINE_MS = 3200;
+    const PHRASE_INTERVAL = 1900;
+    const SILENCE_MS = 2600;
+    const BLOOM_TO_LINE_GAP = 900;
+    const LINE_MS = 2600;
 
     // Cycle the five loading phrases.
     intro.loadingPhrases.forEach((_, i) => {
@@ -52,7 +52,7 @@ export default function IntroSequence({ onBegin }: { onBegin: () => void }) {
       setTimeout(() => {
         setPhase("scene");
         setBloom(true);
-        setTimeout(() => setBloom(false), 1700);
+        setTimeout(() => setBloom(false), 1400);
       }, sceneStart)
     );
 
@@ -104,7 +104,7 @@ export default function IntroSequence({ onBegin }: { onBegin: () => void }) {
               scale: bloom ? [0.3, 2, 1] : 1,
             }}
             transition={{
-              duration: bloom ? 1.7 : 1,
+              duration: bloom ? 1.4 : 0.8,
               ease: [0.16, 1, 0.3, 1],
             }}
             className="absolute -translate-x-1/2"
